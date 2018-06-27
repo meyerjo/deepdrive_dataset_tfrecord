@@ -86,10 +86,13 @@ class DeepdriveDatasetWriter(object):
         :param version:
         :return: Raises BaseExceptions if expectations are not fulfilled
         """
+        assert(fold_type in ['train', 'test', 'val'])
+        version = '100k' if version is None else version
+        assert(version in ['100k', '10k'])
+
         download_folder = os.path.join(self.input_path, 'download')
         expansion_images_folder = os.path.join(self.input_path, 'images')
         expansion_labels_folder = os.path.join(self.input_path, 'labels')
-        tfrecord_folder = os.path.join(self.input_path, 'tfrecord')
         #
         if not os.path.exists(expansion_images_folder):
             mkdir_p(expansion_images_folder)
@@ -139,8 +142,10 @@ class DeepdriveDatasetWriter(object):
         :param annotations:
         :return: boxes, attributes
         """
-        attributes = annotations['attributes']
         box = []
+        if annotations is None:
+            return box
+        attributes = annotations['attributes']
         for frame in annotations['frames']:
             for obj in frame['objects']:
                 if 'box2d' in obj:
@@ -148,9 +153,11 @@ class DeepdriveDatasetWriter(object):
         return dict(boxes=box, attributes=attributes)
 
     def _get_boundingboxes(self, annotations_for_picture_id):
-        assert(len(annotations_for_picture_id['frames']) == 1)
         boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded =\
             [], [], [], [], [], [], [], [], []
+        if annotations_for_picture_id is None:
+            return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
+        assert(len(annotations_for_picture_id['frames']) == 1)
         for frame in annotations_for_picture_id['frames']:
             for obj in frame['objects']:
                 if 'box2d' not in obj:
@@ -233,6 +240,8 @@ class DeepdriveDatasetWriter(object):
         #         annotations_dict[ann] = obj
 
         def get_annotation(picture_id):
+            if full_labels_path is None:
+                return None
             with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
                 return json.loads(f.read())
 
