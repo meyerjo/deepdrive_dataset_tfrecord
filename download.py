@@ -1,1 +1,4 @@
-# No Download option is supported at the moment. Please subscribe on http://bdd-data.berkeley.edu/
+# Please see readme
+
+if __name__ == '__main__':
+    print('Please read the README.md')
