@@ -69,8 +69,6 @@ class DeepdriveDatasetWriter(object):
 
     def __init__(self):
         self.input_path = os.path.join(expanduser('~'), '.deepdrive')
-        if not os.path.exists(self.input_path):
-            print('Input-path does not exist it will be created')
 
     def unzip_file_to_folder(self, filename, folder, remove_file_after_creating=True):
         assert(os.path.exists(filename) and os.path.isfile(filename))
