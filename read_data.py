@@ -32,23 +32,23 @@ if __name__ == '__main__':
         out_dict = dict(zip(out_labels, out))
 
         # Visualize the output
+        import math
         images = out_dict['image']
-        f, axarr = plt.subplots(images.shape[0], 1, dpi=600)
+        fig_row = int(math.ceil(images.shape[0] / 2))
+        fig_col = int(math.ceil(images.shape[0] / 2))
+        f, axarr = plt.subplots(nrows=fig_row, ncols=fig_col)
         for im_id in range(0, images.shape[0]):
-            plt.sca(axarr[im_id])
+            plt.sca(axarr[im_id % 2, int(im_id/2)])
             plt.imshow(images[im_id, :])
             # Boundingbox order is ymin, xmin, ymax, xmax
             for box in out_dict['bboxes'][im_id, :]:
                 rect = Rectangle(
                     xy=(box[1], box[0]), width=box[3] - box[1], height=box[2] - box[0], fill=False)
-                axarr[im_id].add_patch(rect)
+                axarr[im_id % 2, int(im_id/2)].add_patch(rect)
 
             #
-
-            if im_id == 0:
-                axarr[im_id].set_title('Unpadded')
-            axarr[im_id].set_xticks([])
-            axarr[im_id].set_yticks([])
-            axarr[im_id].set_ylabel('Batch-Id: {0}'.format(im_id))
-            axarr[im_id].set_xlabel(str(out_dict['image_ids'][im_id]))
+            axarr[im_id % 2, int(im_id/2)].set_xticks([])
+            axarr[im_id % 2, int(im_id/2)].set_yticks([])
+            axarr[im_id % 2, int(im_id/2)].set_ylabel('Batch-Id: {0}'.format(im_id))
+            axarr[im_id % 2, int(im_id/2)].set_xlabel(str(out_dict['image_ids'][im_id]))
         plt.show()

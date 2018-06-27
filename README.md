@@ -1,4 +1,4 @@
-# deepdrive_dataset_tfrecord
+# Deepdrive Dataset to TFRecord
 Convert the Berkeley Deepdrive dataset to a TFRecord file. (Specifically for the Object Detection Task)
 
 This repository shall help to create a tfrecord file for the berkeley deep drive dataset. I have no affiliation with Berkeley and/or the deep drive team.
