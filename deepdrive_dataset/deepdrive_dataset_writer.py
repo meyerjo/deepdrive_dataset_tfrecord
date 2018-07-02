@@ -170,7 +170,7 @@ class DeepdriveDatasetWriter(object):
                 ymin.append(obj['box2d']['y1'])
                 ymax.append(obj['box2d']['y2'])
                 label.append(obj['category'])
-                label_id.append(DEEPDRIVE_LABELS.index(obj['category']))
+                label_id.append(DEEPDRIVE_LABELS.index(obj['category']) + 1)
 
                 attributes = obj['attributes']
                 truncated.append(attributes.get('truncated', False))
@@ -257,7 +257,6 @@ class DeepdriveDatasetWriter(object):
                     if writer is not None:
                         writer.close()
                         tfrecord_file_id += 1
-                    # ToDo: proper filename...
                     tmp_filename_tfrecord = tfrecord_filename_template.format(iteration=tfrecord_file_id)
                     print('{0}: Create TFRecord filename: {1} after processing {2}/{3} files'.format(
                         str(datetime.datetime.now()), tmp_filename_tfrecord, file_counter, len(image_files)
