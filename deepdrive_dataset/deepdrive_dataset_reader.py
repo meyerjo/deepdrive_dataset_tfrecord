@@ -41,6 +41,10 @@ class DeepdriveDatasetReader():
         self.epochs = epochs
         self.threads = threads
 
+        self.parallel_reads = 2
+        self.num_chained_buffers = 2
+        self.buffer_size = 128
+
         self.input_path = os.path.join(expanduser('~'), '.deepdrive', 'tfrecord')
         if not os.path.exists(self.input_path):
             print('TFRecord path does not exists: {0}. First create the tfrecord file.'.format(self.input_path))
@@ -101,18 +105,9 @@ class DeepdriveDatasetReader():
 
     def get_version_folder(self, fold_type, version):
         version = '100k' if version is None else version
-
         return os.path.join(self.input_path, version, fold_type)
 
-
     def load_boundingbox_data(self, fold_type, version, download=False):
-        # ToDo: parameterize this
-        parallel_reads = 2
-        num_chained_buffers = 2
-        buffer_size = 128
-        repeat = 1
-        num_threads = 4
-
         train_dir = self.get_version_folder(fold_type, version)
         filenames = DeepdriveDatasetDownload.filter_files(train_dir, False, re.compile('\.tfrecord$'))
         if len(filenames) == 0 and download:
@@ -124,10 +119,9 @@ class DeepdriveDatasetReader():
         shape = DeepdriveDatasetReader.parsing_boundingboxes(None, 'shape')
         dataset = self.generate_dataset(
             filenames, parser, shape,
-            parallel_reads, num_chained_buffers, buffer_size, repeat,
-            num_threads, self.batch_size)
+            self.parallel_reads, self.num_chained_buffers,
+            self.buffer_size, self.epochs, self.epochs, self.batch_size)
         return dataset.make_one_shot_iterator().get_next(name='sample_tensor')
-
 
     def load_data_bbox(self, fold_type=None, version=None, download=False, write_masks=False):
         return self.load_boundingbox_data(fold_type, version, download)

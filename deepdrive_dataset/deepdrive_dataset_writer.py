@@ -170,7 +170,7 @@ class DeepdriveDatasetWriter(object):
                 ymin.append(obj['box2d']['y1'])
                 ymax.append(obj['box2d']['y2'])
                 label.append(obj['category'])
-                label_id.append(obj['category'] in DEEPDRIVE_LABELS)
+                label_id.append(DEEPDRIVE_LABELS.index(obj['category']))
 
                 attributes = obj['attributes']
                 truncated.append(attributes.get('truncated', False))
