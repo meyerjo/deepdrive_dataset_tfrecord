@@ -161,9 +161,7 @@ class DeepdriveDatasetWriter(object):
         for frame in annotations_for_picture_id['frames']:
             for obj in frame['objects']:
                 if 'box2d' not in obj:
-                    # skip
                     continue
-                # Todo: Box-Id is not unique
                 boxid.append(obj['id'])
                 xmin.append(obj['box2d']['x1'])
                 xmax.append(obj['box2d']['x2'])
@@ -192,7 +190,6 @@ class DeepdriveDatasetWriter(object):
         image_fileid = re.search('^(.*)(\.jpg)$', image_filename).group(1)
 
         tmp_feat_dict = DeepdriveDatasetWriter.feature_dict
-        # ToDo: Check this.
         tmp_feat_dict['image/id'] = bytes_feature(image_fileid)
         tmp_feat_dict['image/source_id'] = bytes_feature(image_fileid)
         tmp_feat_dict['image/height'] = int64_feature(image_height)
@@ -229,15 +226,6 @@ class DeepdriveDatasetWriter(object):
 
         # get the files
         image_files = DeepdriveDatasetDownload.filter_files(full_images_path, True)
-        annotation_files = DeepdriveDatasetDownload.filter_files(full_labels_path) if full_labels_path is not None else []
-
-        # print('Preload all annotations')
-        # annotations_dict = dict()
-        # for c, ann in enumerate(annotation_files):
-        #     if c % 500 == 0: print('Read {0}/{1} ann. files'.format(c, len(annotation_files)))
-        #     with open(os.path.join(full_labels_path, ann), 'r') as f:
-        #         obj = json.loads(f.read())
-        #         annotations_dict[ann] = obj
 
         def get_annotation(picture_id):
             if full_labels_path is None:

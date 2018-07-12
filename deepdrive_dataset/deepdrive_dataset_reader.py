@@ -36,14 +36,15 @@ class DeepdriveDatasetReader():
             if item['folders']:
                 break
 
-    def __init__(self, batch_size=1, epochs=1, threads=4):
+    def __init__(self, batch_size=1, epochs=1, threads=4, parallel_reads=2,
+                 num_chained_buffers=2, buffer_size=128):
         self.batch_size = batch_size
         self.epochs = epochs
         self.threads = threads
 
-        self.parallel_reads = 2
-        self.num_chained_buffers = 2
-        self.buffer_size = 128
+        self.parallel_reads = parallel_reads
+        self.num_chained_buffers = num_chained_buffers
+        self.buffer_size = buffer_size
 
         self.input_path = os.path.join(expanduser('~'), '.deepdrive', 'tfrecord')
         if not os.path.exists(self.input_path):
@@ -101,7 +102,9 @@ class DeepdriveDatasetReader():
         image_ids = features['image/id']
         box_ids = tf.cast(features['image/object/bbox/id'].values, tf.int64)
         boundingbox_labels = tf.cast(features['image/object/class/label'].values, tf.int64)
-        return image, boundingboxes, boundingbox_labels, image_ids, box_ids, image_shape
+        return tf.stop_gradient(image), tf.stop_gradient(boundingboxes), \
+               tf.stop_gradient(boundingbox_labels), tf.stop_gradient(image_ids), \
+               tf.stop_gradient(box_ids), tf.stop_gradient(image_shape)
 
     def get_version_folder(self, fold_type, version):
         version = '100k' if version is None else version

@@ -1,8 +1,7 @@
-import tensorflow as tf
-import numpy as np
-from PIL import Image
 import argparse
+
 import matplotlib.pyplot as plt
+import tensorflow as tf
 from matplotlib.patches import Rectangle
 
 from deepdrive_dataset.deepdrive_dataset_reader import DeepdriveDatasetReader
