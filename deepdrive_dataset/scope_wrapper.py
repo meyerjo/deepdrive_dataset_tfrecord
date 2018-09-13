@@ -12,7 +12,7 @@ def scope_wrapper(func, *args, **kwargs):
     """
 
     def scoped_func(*args, **kwargs):
-        with tf.name_scope("quat_{}".format(func.__name__)):
+        with tf.name_scope("deepdrive_{}".format(func.__name__)):
             return func(*args, **kwargs)
 
     return scoped_func
