@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import json
@@ -254,6 +255,12 @@ class DeepdriveDatasetWriter(object):
 
     @staticmethod
     def get_annotation(picture_id, full_labels_path=None):
+        """
+        Returns the annotation for the given picture_id. This is the method for the old data-format
+        :param picture_id:
+        :param full_labels_path:
+        :return:
+        """
         if full_labels_path is None:
             return None
         with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
@@ -279,9 +286,44 @@ class DeepdriveDatasetWriter(object):
         return obj_annotation_dict
 
     def _get_tf_feature(self, image_id, image_path, image_format, annotations, new_format=True):
+        """
+        Returns a tf.train.Features object for the given image_id
+        :param image_id:
+        :param image_path:
+        :param image_format:
+        :param annotations:
+        :param new_format:
+        :return:
+        """
         feature_dict = self._get_tf_feature_dict(
             image_id, image_path, image_format, annotations, new_format)
         return tf.train.Features(feature=feature_dict)
+
+    @staticmethod
+    def get_output_file_name_template(output_path, fold_type, version, small_size=None):
+        """
+        Returns string with str template: iteration
+        :param fold_type:
+        :param version:
+        :param small_size:
+        :return:
+        """
+        if small_size is None:
+            return os.path.join(
+                output_path,
+                'output_{version}_{{iteration:06d}}.tfrecord'.format(
+                    version=fold_type + ('100k' if version is None else version)
+                )
+            )
+        else:
+            return os.path.join(
+                output_path,
+                'output_{version}_number_of_files_{number_files}_{{iteration:06d}}.tfrecord'.format(
+                    version=fold_type + ('100k' if version is None else version),
+                    number_files=str(small_size)
+                )
+            )
+
 
     def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False, small_size=None):
         """
@@ -295,6 +337,7 @@ class DeepdriveDatasetWriter(object):
         [E.g. to test overfitting] (default: None)
         :return:
         """
+        logger = logging.getLogger(__name__)
         assert(small_size is None or (isinstance(small_size, int) and small_size > 0))
         output_path = os.path.join(self.input_path, 'tfrecord', version if version is not None else '100k', fold_type)
         if not os.path.exists(output_path):
@@ -308,20 +351,21 @@ class DeepdriveDatasetWriter(object):
             try:
                 obj_annotation_dict = DeepdriveDatasetWriter.get_annotations_dict_from_single_json(label_file)
             except BaseException as e:
-                print('Error loading the label json from: {0} Error: {1}'.format(
+                logger.error('Error loading the label json from: {0} Error: {1}'.format(
                     label_file, str(e)))
                 exit(-1)
 
         # get the files
         image_files = DeepdriveDatasetDownload.filter_files(full_images_path, True)
         if small_size is not None:
-            print('Limiting the number of files written to TFrecord files to {0} files'.format(small_size))
+            logger.info('Limiting the number of files written to TFrecord files to {0} files'.format(small_size))
             image_files = image_files[:small_size]
 
         image_filename_regex = re.compile('^(.*)\.(jpg)$')
         tfrecord_file_id, writer = 0, None
-        tfrecord_filename_template = os.path.join(output_path, 'new_output_{version}_{{iteration:06d}}.tfrecord'.format(
-            version=fold_type + ('100k' if version is None else version)))
+        tfrecord_filename_template = DeepdriveDatasetWriter.get_output_file_name_template(
+            output_path, fold_type, version, small_size
+        )
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             for file_counter, f in enumerate(image_files):
@@ -330,17 +374,17 @@ class DeepdriveDatasetWriter(object):
                         writer.close()
                         tfrecord_file_id += 1
                     tmp_filename_tfrecord = tfrecord_filename_template.format(iteration=tfrecord_file_id)
-                    print('{0}: Create TFRecord filename: {1} after processing {2}/{3} files'.format(
+                    logger.info('{0}: Create TFRecord filename: {1} after processing {2}/{3} files'.format(
                         str(datetime.datetime.now()), tmp_filename_tfrecord, file_counter, len(image_files)
                     ))
                     writer = tf.python_io.TFRecordWriter(tmp_filename_tfrecord)
                 elif file_counter % 250 == 0:
-                    print('\t{0}: Processed file: {1}/{2}'.format(
+                    logger.info('\t{0}: Processed file: {1}/{2}'.format(
                         str(datetime.datetime.now()), file_counter, len(image_files)))
                 # match the filename with the regex
                 m = image_filename_regex.search(f)
                 if m is None:
-                    print('Filename did not match regex: {0}'.format(f))
+                    logger.info('Filename did not match regex: {0}. Skipping file.'.format(f))
                     continue
 
                 picture_id = m.group(1)
