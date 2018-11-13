@@ -37,7 +37,6 @@ class DeepdriveDatasetWriter(object):
         'image/filename': None,
     }
 
-
     @staticmethod
     def feature_dict_description(type='feature_dict'):
         """
@@ -72,8 +71,8 @@ class DeepdriveDatasetWriter(object):
         self.input_path = os.path.join(expanduser('~'), '.deepdrive')
 
     def unzip_file_to_folder(self, filename, folder, remove_file_after_creating=True):
-        assert(os.path.exists(filename) and os.path.isfile(filename))
-        assert(os.path.exists(folder) and os.path.isdir(folder))
+        assert (os.path.exists(filename) and os.path.isfile(filename))
+        assert (os.path.exists(folder) and os.path.isdir(folder))
         with zipfile.ZipFile(filename, 'r') as zf:
             zf.extractall(folder)
         if remove_file_after_creating:
@@ -87,9 +86,9 @@ class DeepdriveDatasetWriter(object):
         :param version:
         :return: Raises BaseExceptions if expectations are not fulfilled (List, List, bool (indicating new version)
         """
-        assert(fold_type in ['train', 'test', 'val'])
+        assert (fold_type in ['train', 'test', 'val'])
         version = '100k' if version is None else version
-        assert(version in ['100k', '10k'])
+        assert (version in ['100k', '10k'])
 
         download_folder = os.path.join(self.input_path, 'download')
         expansion_images_folder = os.path.join(self.input_path, 'images')
@@ -169,7 +168,7 @@ class DeepdriveDatasetWriter(object):
             [], [], [], [], [], [], [], [], []
         if annotations_for_picture_id is None:
             return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
-        assert(len(annotations_for_picture_id['frames']) == 1)
+        assert (len(annotations_for_picture_id['frames']) == 1)
         for frame in annotations_for_picture_id['frames']:
             for obj in frame['objects']:
                 if 'box2d' not in obj:
@@ -211,7 +210,6 @@ class DeepdriveDatasetWriter(object):
             truncated.append(scene_attributes.get('truncated', False))
             occluded.append(scene_attributes.get('occluded', False))
         return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
-
 
     def _get_tf_feature_dict(self, image_id, image_path, image_format, annotations, new_format=True):
         if not new_format:
@@ -266,7 +264,6 @@ class DeepdriveDatasetWriter(object):
         with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
             return json.loads(f.read())
 
-
     @staticmethod
     def get_annotations_dict_from_single_json(json_path):
         """
@@ -275,7 +272,7 @@ class DeepdriveDatasetWriter(object):
         :param json_path:
         :return:
         """
-        assert(os.path.exists(json_path))
+        assert (os.path.exists(json_path))
         filename_regex = re.compile('^(.*)\.jpg$')
         with open(json_path, 'r') as f:
             obj_list = json.load(f)
@@ -324,8 +321,8 @@ class DeepdriveDatasetWriter(object):
                 )
             )
 
-
-    def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False, small_size=None):
+    def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False,
+                       small_size=None):
         """
         Method which opens the tf.Session and actually writes the files
         :param fold_type: 'train', 'val', 'test'
@@ -338,7 +335,7 @@ class DeepdriveDatasetWriter(object):
         :return:
         """
         logger = logging.getLogger(__name__)
-        assert(small_size is None or (isinstance(small_size, int) and small_size > 0))
+        assert (small_size is None or (isinstance(small_size, int) and small_size > 0))
         output_path = os.path.join(self.input_path, 'tfrecord', version if version is not None else '100k', fold_type)
         if not os.path.exists(output_path):
             mkdir_p(output_path)
@@ -347,7 +344,7 @@ class DeepdriveDatasetWriter(object):
 
         obj_annotation_dict = dict()
         if new_format and fold_type != 'test':
-            label_file =os.path.join(full_labels_path, 'bdd100k_labels_images_{0}.json'.format(fold_type))
+            label_file = os.path.join(full_labels_path, 'bdd100k_labels_images_{0}.json'.format(fold_type))
             try:
                 obj_annotation_dict = DeepdriveDatasetWriter.get_annotations_dict_from_single_json(label_file)
             except BaseException as e:
