@@ -84,7 +84,7 @@ class DeepdriveDatasetWriter(object):
         Returns the folder containing all images and the folder containing all label information
         :param fold_type:
         :param version:
-        :return: Raises BaseExceptions if expectations are not fulfilled
+        :return: Raises BaseExceptions if expectations are not fulfilled (List, List, bool (indicating new version)
         """
         assert(fold_type in ['train', 'test', 'val'])
         version = '100k' if version is None else version
@@ -107,11 +107,18 @@ class DeepdriveDatasetWriter(object):
             full_images_path = os.path.join(full_images_path, '10k', fold_type)
 
         extract_files = True
-        if len(DeepdriveDatasetDownload.filter_folders(full_labels_path)) == 2 and \
-                len(DeepdriveDatasetDownload.filter_files(full_images_path)) > 0:
+
+        valid_folder_structure_old_format = (len(DeepdriveDatasetDownload.filter_folders(full_labels_path)) == 2 and \
+                                             len(DeepdriveDatasetDownload.filter_files(full_images_path)) > 0)
+
+        valid_folder_structure_new_format = (len(DeepdriveDatasetDownload.filter_files(full_labels_path)) == 2 and \
+                                             len(DeepdriveDatasetDownload.filter_files(full_images_path)) > 0)
+
+        if valid_folder_structure_old_format or valid_folder_structure_new_format:
             print('Do not check the download folder. Pictures seem to exist.')
-            if fold_type != 'test':
+            if fold_type != 'test' and valid_folder_structure_new_format:
                 full_labels_path = os.path.join(full_labels_path, fold_type)
+
             extract_files = False
         elif os.path.exists(download_folder):
             files_in_directory = DeepdriveDatasetDownload.filter_files(download_folder, False, re.compile('\.zip$'))
@@ -124,17 +131,21 @@ class DeepdriveDatasetWriter(object):
             raise BaseException('Download folder: {0} did not exist. It had been created. '
                                 'Please put images, labels there.'.format(download_folder))
 
+        if valid_folder_structure_new_format:
+            full_labels_path = os.path.join(full_labels_path, '..')
+
         # unzip the elements
         if extract_files:
-            print('Starting to unzip the files')
+            print('Starting to unzip the files. This might not work for the new dataformat')
+            # TODO: update for new data format
             self.unzip_file_to_folder(os.path.join(download_folder, 'bdd100k_labels.zip'), expansion_labels_folder,
                                       False)
             self.unzip_file_to_folder(os.path.join(download_folder, 'bdd100k_images.zip'), expansion_images_folder,
                                       False)
 
         if fold_type == 'test':
-            return full_images_path, None
-        return full_images_path, full_labels_path
+            return full_images_path, None, True
+        return full_images_path, full_labels_path, valid_folder_structure_new_format
 
     def filter_boxes_from_annotation(self, annotations):
         """
@@ -153,7 +164,7 @@ class DeepdriveDatasetWriter(object):
         return dict(boxes=box, attributes=attributes)
 
     def _get_boundingboxes(self, annotations_for_picture_id):
-        boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded =\
+        boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
             [], [], [], [], [], [], [], [], []
         if annotations_for_picture_id is None:
             return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
@@ -175,10 +186,40 @@ class DeepdriveDatasetWriter(object):
                 occluded.append(attributes.get('occluded', False))
         return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
 
-
-    def _get_tf_feature_dict(self, image_id, image_path, image_format, annotations):
+    def _get_boundingboxes_new_format(self, annotations_for_picture_id):
         boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
-            self._get_boundingboxes(annotations)
+            [], [], [], [], [], [], [], [], []
+        if annotations_for_picture_id is None:
+            return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
+        scene_attributes = annotations_for_picture_id['attributes']
+        for obj in annotations_for_picture_id['labels']:
+            if 'box2d' not in obj:
+                continue
+            boxid.append(obj['id'])
+            xmin.append(obj['box2d']['x1'])
+            xmax.append(obj['box2d']['x2'])
+            ymin.append(obj['box2d']['y1'])
+            ymax.append(obj['box2d']['y2'])
+            label.append(scene_attributes)
+
+            # get the class label based on the deepdrive_labels, note that be add + 1 in order to account for
+            # class_label_id = 0 --> background
+            class_label_id = DEEPDRIVE_LABELS.index(obj['category']) + 1
+            label_id.append(class_label_id)
+
+            truncated.append(scene_attributes.get('truncated', False))
+            occluded.append(scene_attributes.get('occluded', False))
+        return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
+
+
+    def _get_tf_feature_dict(self, image_id, image_path, image_format, annotations, new_format=True):
+        if not new_format:
+            boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
+                self._get_boundingboxes(annotations)
+        else:
+            boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
+                self._get_boundingboxes_new_format(annotations)
+
         truncated = np.asarray(truncated)
         occluded = np.asarray(occluded)
 
@@ -211,33 +252,76 @@ class DeepdriveDatasetWriter(object):
 
         return tmp_feat_dict
 
+    @staticmethod
+    def get_annotation(picture_id, full_labels_path=None):
+        if full_labels_path is None:
+            return None
+        with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
+            return json.loads(f.read())
 
-    def _get_tf_feature(self, image_id, image_path, image_format, annotations):
+
+    @staticmethod
+    def get_annotations_dict_from_single_json(json_path):
+        """
+        Loads the annotations from the single json file.
+        Returns a dict with the image-id as key with all the labels
+        :param json_path:
+        :return:
+        """
+        assert(os.path.exists(json_path))
+        filename_regex = re.compile('^(.*)\.jpg$')
+        with open(json_path, 'r') as f:
+            obj_list = json.load(f)
+        obj_annotation_dict = dict()
+        for element in obj_list:
+            tmp_filename = filename_regex.match(element['name']).groups()[0]
+            obj_annotation_dict[tmp_filename] = element
+        return obj_annotation_dict
+
+    def _get_tf_feature(self, image_id, image_path, image_format, annotations, new_format=True):
         feature_dict = self._get_tf_feature_dict(
-            image_id, image_path, image_format, annotations)
+            image_id, image_path, image_format, annotations, new_format)
         return tf.train.Features(feature=feature_dict)
 
-    def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False):
+    def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False, small_size=None):
+        """
+        Method which opens the tf.Session and actually writes the files
+        :param fold_type: 'train', 'val', 'test'
+        :param version: '100k', '10k'
+        :param max_elements_per_file: the number of elements per file,
+        after this number of elements a new tfrecord file is created
+        :param write_masks: unused flag
+        :param small_size: Parameter to limit the number of files which shall be written to files.
+        [E.g. to test overfitting] (default: None)
+        :return:
+        """
+        assert(small_size is None or isinstance(small_size, int))
         output_path = os.path.join(self.input_path, 'tfrecord', version if version is not None else '100k', fold_type)
         if not os.path.exists(output_path):
             mkdir_p(output_path)
 
-        full_images_path, full_labels_path = self.get_image_label_folder(fold_type, version)
+        full_images_path, full_labels_path, new_format = self.get_image_label_folder(fold_type, version)
+
+        obj_annotation_dict = dict()
+        if new_format and fold_type != 'test':
+            label_file =os.path.join(full_labels_path, 'bdd100k_labels_images_{0}.json'.format(fold_type))
+            try:
+                obj_annotation_dict = DeepdriveDatasetWriter.get_annotations_dict_from_single_json(label_file)
+            except BaseException as e:
+                print('Error loading the label json from: {0} Error: {1}'.format(
+                    label_file, str(e)))
+                exit(-1)
 
         # get the files
         image_files = DeepdriveDatasetDownload.filter_files(full_images_path, True)
-
-        def get_annotation(picture_id):
-            if full_labels_path is None:
-                return None
-            with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
-                return json.loads(f.read())
+        if small_size is not None:
+            print('Limiting the number of files written to TFrecord files to {0} files'.format(small_size))
+            image_files = image_files[:small_size]
 
         image_filename_regex = re.compile('^(.*)\.(jpg)$')
         tfrecord_file_id, writer = 0, None
-        tfrecord_filename_template = os.path.join(output_path, 'output_{version}_{{iteration:06d}}.tfrecord'.format(
-            version=fold_type + ('100k' if version is None else version)
-        ))
+        tfrecord_filename_template = os.path.join(output_path, 'new_output_{version}_{{iteration:06d}}.tfrecord'.format(
+            version=fold_type + ('100k' if version is None else version)))
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             for file_counter, f in enumerate(image_files):
@@ -260,12 +344,16 @@ class DeepdriveDatasetWriter(object):
                     continue
 
                 picture_id = m.group(1)
-                picture_id_annotations = get_annotation(picture_id)
-                picture_id_boxes = self.filter_boxes_from_annotation(picture_id_annotations)
+                # get the annotations for the given file
+                if not new_format:
+                    picture_id_annotations = DeepdriveDatasetWriter.get_annotation(
+                        picture_id, full_labels_path=full_labels_path)
+                else:
+                    picture_id_annotations = obj_annotation_dict.get(picture_id, None)
 
                 feature = self._get_tf_feature(
                     picture_id, os.path.join(full_images_path, f),
-                    m.group(2), picture_id_annotations)
+                    m.group(2), picture_id_annotations, new_format)
                 example = tf.train.Example(features=feature)
                 writer.write(example.SerializeToString())
 

@@ -11,4 +11,6 @@ if __name__ == '__main__':
     FLAGS = parser.parse_args()
 
     dd = DeepdriveDatasetWriter()
-    dd.write_tfrecord(FLAGS.fold_type, version=FLAGS.version, max_elements_per_file=FLAGS.elements_per_tfrecord)
+    dd.write_tfrecord(
+        FLAGS.fold_type, version=FLAGS.version,
+        max_elements_per_file=FLAGS.elements_per_tfrecord)
