@@ -3,6 +3,8 @@ Convert the Berkeley Deepdrive dataset to a TFRecord file. (Specifically for the
 
 This repository shall help to create a tfrecord file for the berkeley deep drive dataset. I have no affiliation with Berkeley and/or the deep drive team.
 
+**Now also supports the new data format**
+
 ## Download dataset
 
 1. Register at http://bdd-data.berkeley.edu/login.html . NOTE: The server does not serve an SSL ceritificate.
@@ -21,6 +23,8 @@ You can use the script create_tfrecord.py in order to create the TFRecord file y
 --version = \['100k', '10k'\] : The Berkeley Deepdrive Dataset comes in two sizes. (default=100k)
 
 --elements_per_tfrecord = integer : You can specify, how many images are put into one tfrecord file. Multiple TFRecord files are generated.
+
+--number_images_to_write = integer : Restricts the number of files to be written. \[E.g. to create smaller files to test overfitting\]
 
 The resulting TFRecord files can be found in :
 ~/.deepdrive/tfrecord/\[version\]/\[fold_type\]/
