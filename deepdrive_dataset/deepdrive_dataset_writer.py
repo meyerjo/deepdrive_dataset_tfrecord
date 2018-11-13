@@ -295,7 +295,7 @@ class DeepdriveDatasetWriter(object):
         [E.g. to test overfitting] (default: None)
         :return:
         """
-        assert(small_size is None or isinstance(small_size, int))
+        assert(small_size is None or (isinstance(small_size, int) and small_size > 0))
         output_path = os.path.join(self.input_path, 'tfrecord', version if version is not None else '100k', fold_type)
         if not os.path.exists(output_path):
             mkdir_p(output_path)
