@@ -16,10 +16,17 @@ from tf_features import *
 from PIL import Image
 
 
+def to_int64(value):
+    value = [int(value)] if not isinstance(value, list) else value
+    return tf.train.Feature(
+        int64_list=tf.train.Int64List(value=value)
+    )
+
 class DeepdriveDatasetWriter(object):
     feature_dict = {
         'image/height': None,
         'image/width': None,
+        'image/depth': None,
         'image/object/bbox/id': None,
         'image/object/bbox/xmin': None,
         'image/object/bbox/xmax': None,
@@ -50,20 +57,32 @@ class DeepdriveDatasetWriter(object):
         if type == 'reading_shape':
             obj['image/height'] = tf.FixedLenFeature((), tf.int64, 1)
             obj['image/width'] = tf.FixedLenFeature((), tf.int64, 1)
+            obj['image/depth'] = tf.FixedLenFeature((), tf.int64, 1)
+            obj['height'] = tf.FixedLenFeature((), tf.int64, 1)
+            obj['width'] = tf.FixedLenFeature((), tf.int64, 1)
+            obj['depth'] = tf.FixedLenFeature((), tf.int64, 1)
             obj['image/object/bbox/id'] = tf.VarLenFeature(tf.int64)
             obj['image/object/bbox/xmin'] = tf.VarLenFeature(tf.float32)
             obj['image/object/bbox/xmax'] = tf.VarLenFeature(tf.float32)
             obj['image/object/bbox/ymin'] = tf.VarLenFeature(tf.float32)
             obj['image/object/bbox/ymax'] = tf.VarLenFeature(tf.float32)
+            obj['xmin'] = tf.VarLenFeature(tf.int64)
+            obj['xmax'] = tf.VarLenFeature(tf.int64)
+            obj['ymin'] = tf.VarLenFeature(tf.int64)
+            obj['ymax'] = tf.VarLenFeature(tf.int64)
+
             obj['image/object/bbox/truncated'] = tf.VarLenFeature(tf.string)
             obj['image/object/bbox/occluded'] = tf.VarLenFeature(tf.string)
             obj['image/encoded'] = tf.FixedLenFeature((), tf.string, default_value='')
+            obj['image_raw'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/format'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/filename'] = tf.FixedLenFeature((), tf.string, default_value='')
+            obj['filename'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/id'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/source_id'] = tf.FixedLenFeature((), tf.string, default_value='')
             obj['image/object/class/label/id'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/label'] = tf.VarLenFeature(tf.int64)
+            obj['label'] = tf.VarLenFeature(tf.int64)
             obj['image/object/class/label/name'] = tf.VarLenFeature(tf.string)
         return obj
 
@@ -200,8 +219,8 @@ class DeepdriveDatasetWriter(object):
             xmax.append(obj['box2d']['x2'])
             ymin.append(obj['box2d']['y1'])
             ymax.append(obj['box2d']['y2'])
-            label.append(scene_attributes)
-
+            # label.append(scene_attributes)
+            label.append(obj['category'])
             # get the class label based on the deepdrive_labels, note that be add + 1 in order to account for
             # class_label_id = 0 --> background
             class_label_id = DEEPDRIVE_LABELS.index(obj['category']) + 1
@@ -210,6 +229,8 @@ class DeepdriveDatasetWriter(object):
             truncated.append(scene_attributes.get('truncated', False))
             occluded.append(scene_attributes.get('occluded', False))
         return boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded
+
+
 
     def _get_tf_feature_dict(self, image_id, image_path, image_format, annotations, new_format=True):
         if not new_format:
@@ -230,26 +251,51 @@ class DeepdriveDatasetWriter(object):
         image_fileid = re.search('^(.*)(\.jpg)$', image_filename).group(1)
 
         tmp_feat_dict = DeepdriveDatasetWriter.feature_dict
-        tmp_feat_dict['image/id'] = bytes_feature(image_fileid)
-        tmp_feat_dict['image/source_id'] = bytes_feature(image_fileid)
-        tmp_feat_dict['image/height'] = int64_feature(image_height)
-        tmp_feat_dict['image/width'] = int64_feature(image_width)
+        # tmp_feat_dict['image/id'] = bytes_feature(image_fileid)
+        # tmp_feat_dict['image/source_id'] = bytes_feature(image_fileid)
+        # tmp_feat_dict['image/height'] = int64_feature(image_height)
+        # tmp_feat_dict['image/width'] = int64_feature(image_width)
+        # tmp_feat_dict['image/depth'] = int64_feature(3)
+        tmp_feat_dict['height'] = int64_feature(image_height)
+        tmp_feat_dict['width'] = int64_feature(image_width)
+        tmp_feat_dict['depth'] = int64_feature(3)
+        tmp_feat_dict['filename'] = bytes_feature(image_filename)
         with open(image_path, 'rb') as f:
-            tmp_feat_dict['image/encoded'] = bytes_feature(f.read())
-        tmp_feat_dict['image/format'] = bytes_feature(image_format)
-        tmp_feat_dict['image/filename'] = bytes_feature(image_filename)
-        tmp_feat_dict['image/object/bbox/id'] = int64_feature(boxid)
-        tmp_feat_dict['image/object/bbox/xmin'] = float_feature(xmin)
-        tmp_feat_dict['image/object/bbox/xmax'] = float_feature(xmax)
-        tmp_feat_dict['image/object/bbox/ymin'] = float_feature(ymin)
-        tmp_feat_dict['image/object/bbox/ymax'] = float_feature(ymax)
-        tmp_feat_dict['image/object/bbox/truncated'] = bytes_feature(truncated.tobytes())
-        tmp_feat_dict['image/object/bbox/occluded'] = bytes_feature(occluded.tobytes())
-        tmp_feat_dict['image/object/class/label/id'] = int64_feature(label_id)
-        tmp_feat_dict['image/object/class/label'] = int64_feature(label_id)
-        tmp_feat_dict['image/object/class/label/name'] = bytes_feature(label_bytes)
+            tmp_feat_dict['image_raw'] = bytes_feature(f.read())
+        #     tmp_feat_dict['image/encoded'] = bytes_feature(f.read())
+        # tmp_feat_dict['image/format'] = bytes_feature(image_format)
+        # tmp_feat_dict['image/filename'] = bytes_feature(image_filename)
+        # tmp_feat_dict['image/object/bbox/id'] = int64_feature(boxid)
+        # tmp_feat_dict['image/object/bbox/xmin'] = float_feature(xmin)
+        # tmp_feat_dict['image/object/bbox/xmax'] = float_feature(xmax)
+        # tmp_feat_dict['image/object/bbox/ymin'] = float_feature(ymin)
+        # tmp_feat_dict['image/object/bbox/ymax'] = float_feature(ymax)
 
-        return tmp_feat_dict
+        xmin = [to_int64(x) for x in xmin]
+        xmax = [to_int64(x) for x in xmax]
+        ymin = [to_int64(x) for x in ymin]
+        ymax = [to_int64(x) for x in ymax]
+        label_id = [to_int64(x) for x in label_id]
+
+        tmp_feat_dict['xmin'] = tf.train.FeatureList(feature=xmin)
+        tmp_feat_dict['xmax'] = tf.train.FeatureList(feature=xmax)
+        tmp_feat_dict['ymin'] = tf.train.FeatureList(feature=ymin)
+        tmp_feat_dict['ymax'] = tf.train.FeatureList(feature=ymax)
+        tmp_feat_dict['label'] = tf.train.FeatureList(feature=label_id)
+        # tmp_feat_dict['image/object/bbox/truncated'] = bytes_feature(truncated.tobytes())
+        # tmp_feat_dict['image/object/bbox/occluded'] = bytes_feature(occluded.tobytes())
+        # tmp_feat_dict['image/object/class/label/id'] = int64_feature(label_id)
+        # tmp_feat_dict['image/object/class/label'] = int64_feature(label_id)
+        # tmp_feat_dict['image/object/class/label/name'] = bytes_feature(label_bytes)
+        
+        new_dict = {}
+        for key, item in tmp_feat_dict.items():
+            if item is not None:
+                new_dict[key] = item
+            else:
+                print('Dropping key: "{0}"'.format(key))
+
+        return new_dict
 
     @staticmethod
     def get_annotation(picture_id, full_labels_path=None):
@@ -294,7 +340,27 @@ class DeepdriveDatasetWriter(object):
         """
         feature_dict = self._get_tf_feature_dict(
             image_id, image_path, image_format, annotations, new_format)
-        return tf.train.Features(feature=feature_dict)
+        obj_feature_keys = ['label', 'xmin', 'xmax', 'ymin', 'ymax']
+        seq_keys = ['width', 'height', 'depth', 'filename', 'image_raw']
+
+        feature = {}
+        object_feature_lists = {}
+        for key, item in feature_dict.items():
+            if key in obj_feature_keys:
+                object_feature_lists[key] = item
+            elif key in seq_keys:
+                feature[key] = item
+
+        object_features = tf.train.FeatureLists(
+            feature_list=object_feature_lists
+        )
+
+        context = tf.train.Features(feature=feature)
+        example = tf.train.SequenceExample(
+            feature_lists=object_features, context=context
+        )
+
+        return example
 
     @staticmethod
     def get_output_file_name_template(output_path, fold_type, version, small_size=None):
@@ -392,10 +458,14 @@ class DeepdriveDatasetWriter(object):
                 else:
                     picture_id_annotations = obj_annotation_dict.get(picture_id, None)
 
+                if (picture_id_annotations is None) or (not any(['box2d' in x for x in picture_id_annotations['labels']])):
+                    continue
+
                 feature = self._get_tf_feature(
                     picture_id, os.path.join(full_images_path, f),
                     m.group(2), picture_id_annotations, new_format)
-                example = tf.train.Example(features=feature)
+                #example = tf.train.Example(features=feature)
+                example = feature
                 writer.write(example.SerializeToString())
 
             # Close the last files
