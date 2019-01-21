@@ -218,9 +218,28 @@ class DeepdriveDatasetWriter(object):
         else:
             boxid, xmin, xmax, ymin, ymax, label_id, label, truncated, occluded = \
                 self._get_boundingboxes_new_format(annotations)
+            
+        y, x, h = np.meshgrid([.25, .75], [.25, .75], [.2])
+        boxes_yxhh = np.reshape(np.stack((y, x, h, h), axis=-1), (-1, 4))
+        boxes_tl_br = np.concatenate(
+            [
+                boxes_yxhh[:, 0:2] - (boxes_yxhh[:, 2:] / 2.),
+                boxes_yxhh[:, 0:2] + (boxes_yxhh[:, 2:] / 2.),
+            ], axis=-1
+        )
+        xmin = (boxes_tl_br[:, 1] * 1280).tolist()
+        ymin = (boxes_tl_br[:, 0] * 720).tolist()
+        xmax = (boxes_tl_br[:, 3] * 1280).tolist()
+        ymax = (boxes_tl_br[:, 2] * 720).tolist()
 
         truncated = np.asarray(truncated)
         occluded = np.asarray(occluded)
+        #
+        truncated = np.zeros_like(boxes_tl_br[:, 1], dtype=np.bool)
+        occluded = np.zeros_like(boxes_tl_br[:, 1], dtype=np.bool)
+        label_id = (np.ones_like(xmax, dtype=np.int32) * 8).tolist()
+        label = ['car'] * len(xmax)
+        boxid = range(0, len(xmax))
 
         # convert things to bytes
         label_bytes = [tf.compat.as_bytes(l) for l in label]
