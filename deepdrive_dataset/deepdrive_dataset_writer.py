@@ -200,7 +200,7 @@ class DeepdriveDatasetWriter(object):
             xmax.append(obj['box2d']['x2'])
             ymin.append(obj['box2d']['y1'])
             ymax.append(obj['box2d']['y2'])
-            label.append(scene_attributes)
+            label.append(obj['category'])
 
             # get the class label based on the deepdrive_labels, note that be add + 1 in order to account for
             # class_label_id = 0 --> background
