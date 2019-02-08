@@ -138,10 +138,14 @@ class DeepdriveDatasetWriter(object):
         if extract_files:
             print('Starting to unzip the files. This might not work for the new dataformat')
             # TODO: update for new data format
-            self.unzip_file_to_folder(os.path.join(download_folder, 'bdd100k_labels.zip'), expansion_labels_folder,
-                                      False)
-            self.unzip_file_to_folder(os.path.join(download_folder, 'bdd100k_images.zip'), expansion_images_folder,
-                                      False)
+            self.unzip_file_to_folder(
+                os.path.join(
+                    download_folder, 'bdd100k_labels.zip'
+                ),
+                expansion_labels_folder, False)
+            self.unzip_file_to_folder(
+                os.path.join(download_folder, 'bdd100k_images.zip'),
+                expansion_images_folder, False)
 
         if fold_type == 'test':
             return full_images_path, None, True
@@ -254,14 +258,16 @@ class DeepdriveDatasetWriter(object):
     @staticmethod
     def get_annotation(picture_id, full_labels_path=None):
         """
-        Returns the annotation for the given picture_id. This is the method for the old data-format
+        Returns the annotation for the given picture_id.
+        This is the method for the old data-format
         :param picture_id:
         :param full_labels_path:
         :return:
         """
         if full_labels_path is None:
             return None
-        with open(os.path.join(full_labels_path, picture_id + '.json'), 'r') as f:
+        with open(os.path.join(
+                full_labels_path, picture_id + '.json'), 'r') as f:
             return json.loads(f.read())
 
     @staticmethod
@@ -297,7 +303,8 @@ class DeepdriveDatasetWriter(object):
         return tf.train.Features(feature=feature_dict)
 
     @staticmethod
-    def get_output_file_name_template(output_path, fold_type, version, small_size=None):
+    def get_output_file_name_template(output_path, fold_type, version, small_size=None,
+                                      weather_type=None, scene_type=None, daytime_type=None):
         """
         Returns string with str template: iteration
         :param fold_type:
@@ -305,24 +312,27 @@ class DeepdriveDatasetWriter(object):
         :param small_size:
         :return:
         """
-        if small_size is None:
-            return os.path.join(
-                output_path,
-                'output_{version}_{{iteration:06d}}.tfrecord'.format(
-                    version=fold_type + ('100k' if version is None else version)
-                )
+        extra_parts = ''
+        if small_size is not None:
+            extra_parts += 'number_of_files_{0}_'.format(small_size)
+        if weather_type is not None:
+            extra_parts += 'weather_{0}_'.format(weather_type)
+        if scene_type is not None:
+            extra_parts += 'scene_{0}_'.format(scene_type)
+        if daytime_type is not None:
+            extra_parts += 'daytime_{0}_'.format(daytime_type)
+        return os.path.join(
+            output_path,
+            'output_{version}_{extra_parts}_{{iteration:06d}}.tfrecord'.format(
+                version=fold_type + ('100k' if version is None else version),
+                extra_parts=extra_parts
             )
-        else:
-            return os.path.join(
-                output_path,
-                'output_{version}_number_of_files_{number_files}_{{iteration:06d}}.tfrecord'.format(
-                    version=fold_type + ('100k' if version is None else version),
-                    number_files=str(small_size)
-                )
-            )
+        )
 
-    def write_tfrecord(self, fold_type=None, version=None, max_elements_per_file=1000, write_masks=False,
-                       small_size=None):
+    def write_tfrecord(self, fold_type=None, version=None,
+                       max_elements_per_file=1000, write_masks=False,
+                       small_size=None, weather_type=None, scene_type=None,
+                       daytime_type=None):
         """
         Method which opens the tf.Session and actually writes the files
         :param fold_type: 'train', 'val', 'test'
@@ -344,30 +354,40 @@ class DeepdriveDatasetWriter(object):
 
         obj_annotation_dict = dict()
         if new_format and fold_type != 'test':
-            label_file = os.path.join(full_labels_path, 'bdd100k_labels_images_{0}.json'.format(fold_type))
+            label_file = os.path.join(
+                full_labels_path, 'bdd100k_labels_images_{0}.json'.format(
+                    fold_type))
             try:
-                obj_annotation_dict = DeepdriveDatasetWriter.get_annotations_dict_from_single_json(label_file)
+                obj_annotation_dict = DeepdriveDatasetWriter.\
+                    get_annotations_dict_from_single_json(label_file)
             except BaseException as e:
-                logger.error('Error loading the label json from: {0} Error: {1}'.format(
-                    label_file, str(e)))
+                logger.error('Error loading the label json from: {0} '
+                             'Error: {1}'.format(label_file, str(e)))
                 exit(-1)
 
         # get the files
         image_files = DeepdriveDatasetDownload.filter_files(full_images_path, True)
         if small_size is not None:
             logger.info('Limiting the number of files written to TFrecord files to {0} files'.format(small_size))
-            image_files = image_files[:small_size]
+        if weather_type is not None:
+            logger.info('Limit to weather-type: {0}'.format(weather_type))
+        if scene_type is not None:
+            logger.info('Limit to scene-type: {0}'.format(scene_type))
+        if daytime_type is not None:
+            logger.info('Limit to daytime-type: {0}'.format(daytime_type))
 
         image_filename_regex = re.compile('^(.*)\.(jpg)$')
         tfrecord_file_id, writer = 0, None
         tfrecord_filename_template = DeepdriveDatasetWriter.get_output_file_name_template(
-            output_path, fold_type, version, small_size
+            output_path, fold_type, version, small_size, weather_type,
+            scene_type, daytime_type
         )
+        write_counter = 0
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
             for file_counter, f in enumerate(image_files):
-                if file_counter % max_elements_per_file == 0:
-                    if writer is not None:
+                if write_counter % max_elements_per_file == 0:
+                    if writer is not None and write_counter != 0:
                         writer.close()
                         tfrecord_file_id += 1
                     tmp_filename_tfrecord = tfrecord_filename_template.format(iteration=tfrecord_file_id)
@@ -375,13 +395,14 @@ class DeepdriveDatasetWriter(object):
                         str(datetime.datetime.now()), tmp_filename_tfrecord, file_counter, len(image_files)
                     ))
                     writer = tf.python_io.TFRecordWriter(tmp_filename_tfrecord)
-                elif file_counter % 250 == 0:
+                elif write_counter % 250 == 0:
                     logger.info('\t{0}: Processed file: {1}/{2}'.format(
                         str(datetime.datetime.now()), file_counter, len(image_files)))
                 # match the filename with the regex
                 m = image_filename_regex.search(f)
                 if m is None:
-                    logger.info('Filename did not match regex: {0}. Skipping file.'.format(f))
+                    logger.info('Filename did not match regex: {0}. '
+                                'Skipping file.'.format(f))
                     continue
 
                 picture_id = m.group(1)
@@ -392,11 +413,32 @@ class DeepdriveDatasetWriter(object):
                 else:
                     picture_id_annotations = obj_annotation_dict.get(picture_id, None)
 
+                if picture_id_annotations is None:
+                    continue
+                attributes = picture_id_annotations.get('attributes', None)
+
+                if weather_type is not None and \
+                        attributes['weather'] != weather_type:
+                    continue
+
+                if scene_type is not None and \
+                        attributes['scene'] != scene_type:
+                    continue
+
+                if daytime_type is not None and \
+                        attributes['timeofday'] != daytime_type:
+                    continue
+
                 feature = self._get_tf_feature(
                     picture_id, os.path.join(full_images_path, f),
                     m.group(2), picture_id_annotations, new_format)
                 example = tf.train.Example(features=feature)
                 writer.write(example.SerializeToString())
+                write_counter += 1
+
+                # we leave it if enough files were written
+                if small_size is not None and write_counter >= small_size:
+                    break
 
             # Close the last files
             if writer is not None:
