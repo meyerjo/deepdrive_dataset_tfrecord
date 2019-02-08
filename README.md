@@ -26,6 +26,12 @@ You can use the script create_tfrecord.py in order to create the TFRecord file y
 
 --number_images_to_write = integer : Restricts the number of files to be written. \[E.g. to create smaller files to test overfitting\]
 
+--weather = str : Specify the weather which should be written to the tfrecord
+
+--scene_type = str : Specify the scene_type which should be written to the tfrecord
+
+--daytime = str : Restrict the daytime which should be written to the tfrecord
+
 The resulting TFRecord files can be found in :
 ~/.deepdrive/tfrecord/\[version\]/\[fold_type\]/
 
