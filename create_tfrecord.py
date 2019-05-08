@@ -32,6 +32,14 @@ if __name__ == '__main__':
         help='Only write files with this specific daytime'
     )
 
+    parser.add_argument(
+        '--classes', type=str, default=None,
+        help='Only write boundingboxes of this specific classes '
+             '(Comma separated). Classlabels: ['
+             '"`bus`, `traffic light`, `traffic sign`, `person`, `bike`, '
+             '`truck`, `motor`, `car`, `train`, `rider`"]'
+    )
+
     FLAGS = parser.parse_args()
 
     dd = DeepdriveDatasetWriter()
@@ -40,5 +48,5 @@ if __name__ == '__main__':
         max_elements_per_file=FLAGS.elements_per_tfrecord,
         small_size=FLAGS.number_images_to_write,
         weather_type=FLAGS.weather, scene_type=FLAGS.scene_type,
-        daytime_type=FLAGS.daytime
+        daytime_type=FLAGS.daytime, classes=FLAGS.classes
     )

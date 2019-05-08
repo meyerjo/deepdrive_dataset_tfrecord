@@ -303,8 +303,11 @@ class DeepdriveDatasetWriter(object):
         return tf.train.Features(feature=feature_dict)
 
     @staticmethod
-    def get_output_file_name_template(output_path, fold_type, version, small_size=None,
-                                      weather_type=None, scene_type=None, daytime_type=None):
+    def get_output_file_name_template(
+            output_path, fold_type, version,
+            small_size=None,
+            weather_type=None, scene_type=None,
+            daytime_type=None, classes=None):
         """
         Returns string with str template: iteration
         :param fold_type:
@@ -321,6 +324,8 @@ class DeepdriveDatasetWriter(object):
             extra_parts += 'scene_{0}_'.format(scene_type)
         if daytime_type is not None:
             extra_parts += 'daytime_{0}_'.format(daytime_type)
+        if classes is not None:
+            extra_parts += 'classes_{0}_'.format(classes)
         return os.path.join(
             output_path,
             'output_{version}_{extra_parts}_{{iteration:06d}}.tfrecord'.format(
@@ -332,7 +337,7 @@ class DeepdriveDatasetWriter(object):
     def write_tfrecord(self, fold_type=None, version=None,
                        max_elements_per_file=1000, write_masks=False,
                        small_size=None, weather_type=None, scene_type=None,
-                       daytime_type=None):
+                       daytime_type=None, classes=None):
         """
         Method which opens the tf.Session and actually writes the files
         :param fold_type: 'train', 'val', 'test'
@@ -342,6 +347,7 @@ class DeepdriveDatasetWriter(object):
         :param write_masks: unused flag
         :param small_size: Parameter to limit the number of files which shall be written to files.
         [E.g. to test overfitting] (default: None)
+        :param classes: classes
         :return:
         """
         logger = logging.getLogger(__name__)
@@ -358,7 +364,7 @@ class DeepdriveDatasetWriter(object):
                 full_labels_path, 'bdd100k_labels_images_{0}.json'.format(
                     fold_type))
             try:
-                obj_annotation_dict = DeepdriveDatasetWriter.\
+                obj_annotation_dict = DeepdriveDatasetWriter. \
                     get_annotations_dict_from_single_json(label_file)
             except BaseException as e:
                 logger.error('Error loading the label json from: {0} '
@@ -375,12 +381,15 @@ class DeepdriveDatasetWriter(object):
             logger.info('Limit to scene-type: {0}'.format(scene_type))
         if daytime_type is not None:
             logger.info('Limit to daytime-type: {0}'.format(daytime_type))
+        if classes is not None:
+            logger.info('Limit to class-type: {}'.format(classes))
+            classes_split = classes.split(',')
 
         image_filename_regex = re.compile('^(.*)\.(jpg)$')
         tfrecord_file_id, writer = 0, None
         tfrecord_filename_template = DeepdriveDatasetWriter.get_output_file_name_template(
             output_path, fold_type, version, small_size, weather_type,
-            scene_type, daytime_type
+            scene_type, daytime_type, classes
         )
         write_counter = 0
         with tf.Session() as sess:
@@ -428,6 +437,12 @@ class DeepdriveDatasetWriter(object):
                 if daytime_type is not None and \
                         attributes['timeofday'] != daytime_type:
                     continue
+
+                if classes is not None:
+                    picture_id_annotations['labels'] = [
+                        pic_id for pic_id in picture_id_annotations['labels']
+                        if pic_id.get('category', None) in classes_split
+                    ]
 
                 feature = self._get_tf_feature(
                     picture_id, os.path.join(full_images_path, f),
